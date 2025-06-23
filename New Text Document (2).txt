@@ -1,0 +1,96 @@
+from flask import Flask, request, render_template_string
+import joblib
+import pandas as pd
+
+app = Flask(__name__)
+
+# Load model and label encoders
+model = joblib.load('mushroom_model.joblib')
+label_encoders = joblib.load('label_encoders.joblib')
+
+# Define feature names
+features = [
+    'cap_shape', 'cap_surface', 'cap_color', 'bruises', 'odor',
+    'gill_attachment', 'gill_spacing', 'gill_size', 'gill_color',
+    'stalk_shape', 'stalk_root', 'stalk_surface_above_ring',
+    'stalk_surface_below_ring', 'stalk_color_above_ring',
+    'stalk_color_below_ring', 'veil_type', 'veil_color',
+    'ring_number', 'ring_type', 'spore_print_color', 'population', 'habitat'
+]
+
+# Valid values for dropdowns
+feature_options = {
+    'cap_shape': ['b', 'c', 'x', 'f', 'k', 's'],
+    'cap_surface': ['f', 'g', 'y', 's'],
+    'cap_color': ['n', 'b', 'c', 'g', 'r', 'p', 'u', 'e', 'w', 'y'],
+    'bruises': ['t', 'f'],
+    'odor': ['a', 'l', 'c', 'y', 'f', 'm', 'n', 'p', 's'],
+    'gill_attachment': ['a', 'd'],
+    'gill_spacing': ['c', 'w'],
+    'gill_size': ['b', 'n'],
+    'gill_color': ['k', 'n', 'b', 'h', 'g', 'r', 'o', 'p', 'u', 'e', 'w', 'y'],
+    'stalk_shape': ['e', 't'],
+    'stalk_root': ['b', 'c', 'u', 'e', 'z', 'r'],
+    'stalk_surface_above_ring': ['f', 'y', 'k', 's'],
+    'stalk_surface_below_ring': ['f', 'y', 'k', 's'],
+    'stalk_color_above_ring': ['n', 'b', 'c', 'g', 'o', 'p', 'e', 'w', 'y'],
+    'stalk_color_below_ring': ['n', 'b', 'c', 'g', 'o', 'p', 'e', 'w', 'y'],
+    'veil_type': ['p'],
+    'veil_color': ['n', 'o', 'w', 'y'],
+    'ring_number': ['n', 'o', 't'],
+    'ring_type': ['c', 'e', 'f', 'l', 'n', 'p', 's'],
+    'spore_print_color': ['k', 'n', 'b', 'h', 'r', 'o', 'u', 'w', 'y'],
+    'population': ['a', 'c', 'n', 's', 'v', 'y'],
+    'habitat': ['g', 'l', 'm', 'p', 'u', 'w', 'd']
+}
+
+# HTML Template
+HTML_TEMPLATE = """
+<!doctype html>
+<title>Mushroom Classifier</title>
+<h2>🍄 Mushroom Classification</h2>
+<form method="POST">
+  {% for feature in features %}
+    <label>{{ feature.replace('_', ' ').title() }}:</label>
+    <select name="{{ feature }}">
+      {% for option in feature_options[feature] %}
+        <option value="{{ option }}">{{ option }}</option>
+      {% endfor %}
+    </select><br><br>
+  {% endfor %}
+  <input type="submit" value="Predict">
+</form>
+
+{% if prediction %}
+  <h3>🧠 Prediction: <b>{{ prediction }}</b></h3>
+{% endif %}
+"""
+
+@app.route('/', methods=['GET', 'POST'])
+def predict():
+    prediction = None
+    if request.method == 'POST':
+        input_data = {}
+        for feature in features:
+            input_data[feature] = request.form[feature]
+
+        # Convert input to DataFrame
+        input_df = pd.DataFrame([input_data])
+
+        # Encode input safely
+        try:
+            for col in features:
+                le = label_encoders[col]
+                input_df[col] = le.transform(input_df[col])
+        except ValueError as ve:
+            return f"<h3>Error: {ve}</h3>"
+
+        # Predict
+        pred_encoded = model.predict(input_df)[0]
+        pred_label = label_encoders['class'].inverse_transform([pred_encoded])[0]
+        prediction = "Edible ✅" if pred_label == 'e' else "Poisonous ⚠️"
+
+    return render_template_string(HTML_TEMPLATE, features=features, feature_options=feature_options, prediction=prediction)
+
+if __name__ == '__main__':
+    app.run(debug=True)

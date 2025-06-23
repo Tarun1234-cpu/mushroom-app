@@ -1,0 +1,75 @@
+import streamlit as st
+import pandas as pd
+import joblib
+
+# Load model and encoders
+model = joblib.load("mushroom_model.joblib")
+label_encoders = joblib.load("label_encoders.joblib")
+
+# List of features
+features = [
+    'cap_shape', 'cap_surface', 'cap_color', 'bruises', 'odor',
+    'gill_attachment', 'gill_spacing', 'gill_size', 'gill_color',
+    'stalk_shape', 'stalk_root', 'stalk_surface_above_ring',
+    'stalk_surface_below_ring', 'stalk_color_above_ring',
+    'stalk_color_below_ring', 'veil_type', 'veil_color',
+    'ring_number', 'ring_type', 'spore_print_color', 'population', 'habitat'
+]
+
+# Valid options per feature
+feature_options = {
+    'cap_shape': ['b', 'c', 'x', 'f', 'k', 's'],
+    'cap_surface': ['f', 'g', 'y', 's'],
+    'cap_color': ['n', 'b', 'c', 'g', 'r', 'p', 'u', 'e', 'w', 'y'],
+    'bruises': ['t', 'f'],
+    'odor': ['a', 'l', 'c', 'y', 'f', 'm', 'n', 'p', 's'],
+    'gill_attachment': ['a', 'd'],
+    'gill_spacing': ['c', 'w'],
+    'gill_size': ['b', 'n'],
+    'gill_color': ['k', 'n', 'b', 'h', 'g', 'r', 'o', 'p', 'u', 'e', 'w', 'y'],
+    'stalk_shape': ['e', 't'],
+    'stalk_root': ['b', 'c', 'u', 'e', 'z', 'r'],
+    'stalk_surface_above_ring': ['f', 'y', 'k', 's'],
+    'stalk_surface_below_ring': ['f', 'y', 'k', 's'],
+    'stalk_color_above_ring': ['n', 'b', 'c', 'g', 'o', 'p', 'e', 'w', 'y'],
+    'stalk_color_below_ring': ['n', 'b', 'c', 'g', 'o', 'p', 'e', 'w', 'y'],
+    'veil_type': ['p'],
+    'veil_color': ['n', 'o', 'w', 'y'],
+    'ring_number': ['n', 'o', 't'],
+    'ring_type': ['c', 'e', 'f', 'l', 'n', 'p', 's'],
+    'spore_print_color': ['k', 'n', 'b', 'h', 'r', 'o', 'u', 'w', 'y'],
+    'population': ['a', 'c', 'n', 's', 'v', 'y'],
+    'habitat': ['g', 'l', 'm', 'p', 'u', 'w', 'd']
+}
+
+# App title
+st.title("🍄 Mushroom Classification")
+st.markdown("Predict whether a mushroom is **edible** or **poisonous** based on its features.")
+
+# Collect user input
+user_input = {}
+for feature in features:
+    user_input[feature] = st.selectbox(f"{feature.replace('_', ' ').title()}:", feature_options[feature])
+
+# Prediction
+if st.button("Predict"):
+    input_df = pd.DataFrame([user_input])
+
+    # Encode features safely
+    try:
+        for col, le in label_encoders.items():
+            if col != 'class':
+                input_df[col] = le.transform(input_df[col])
+    except ValueError as ve:
+        st.error(f"❌ Invalid input for column `{col}`: {ve}")
+        st.stop()
+
+    # Make prediction
+    pred_encoded = model.predict(input_df)[0]
+    pred_label = label_encoders['class'].inverse_transform([pred_encoded])[0]
+
+    # Display result
+    if pred_label == 'e':
+        st.success("✅ This mushroom is **Edible**.")
+    else:
+        st.error("⚠️ This mushroom is **Poisonous**!")
